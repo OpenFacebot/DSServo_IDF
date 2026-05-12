@@ -18,6 +18,7 @@ DSServo ds_servo;
 
 extern "C" void app_main(void)
 {
+    //Intialize the Serial Port
     ds_servo.begin(SERVO_UART_NUM, SERVO_TX_PIN, SERVO_RX_PIN, SERVO_BAUDRATE);
     vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for the serial port to stabilize
 

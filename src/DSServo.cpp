@@ -3,9 +3,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-DSServo::DSServo() : _uart_num(UART_NUM_MAX) {
-    // 初始化时清空状态缓存数组
+DSServo::DSServo() : _uart_num(UART_NUM_MAX), _last_error(false) {
     memset(_last_status, 0, sizeof(_last_status));
+    memset(_feedback, 0, sizeof(_feedback));
+    memset(_last_pos, 0, sizeof(_last_pos));
 }
 
 esp_err_t DSServo::begin(uart_port_t uart_num, int tx_pin, int rx_pin, uint32_t baud_rate) {
@@ -286,4 +287,107 @@ esp_err_t DSServo::calibrateOffset(uint8_t id) {
     printf("[校准] ID=%d 校准完成 (ret=%d)\n", id, ret);
     printf("========================================\n\n");
     return ret;
+}
+
+int16_t DSServo::getLoad(uint8_t id) {
+    uint8_t params[2] = {DS_REG_CUR_LOAD, 2};
+    sendPacket(id, DS_CMD_READ, params, 2);
+    uint8_t rx[2];
+    if (receivePacket(id, rx, 2, 20) == 2) {
+        return (int16_t)((rx[0] << 8) | rx[1]);
+    }
+    return -1;
+}
+
+esp_err_t DSServo::FeedBack(uint8_t id) {
+    ServoFeedback &fb = _feedback[id];
+    _last_error = false;
+
+    // 逐寄存器回读: 位置(2B)/速度(2B)/负载(2B)/电压(1B)/温度(1B)
+    int16_t pos = getPosition(id);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int16_t spd = getSpeed(id);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int16_t load = getLoad(id);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int16_t volt = getVoltage(id);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int16_t temp = getTemperature(id);
+
+    // 判断是否全部读取成功 (任一返回 -1 即为失败)
+    if (pos < 0 || spd < 0 || volt < 0 || temp < 0) {
+        _last_error = true;
+        fb.valid = false;
+        return ESP_FAIL;
+    }
+
+    // 检测运动状态: 位置变化 >0 即认为在运动
+    fb.moving = (pos != _last_pos[id]) ? 1 : 0;
+    _last_pos[id] = pos;
+
+    // 填充缓存
+    fb.pos = pos;
+    fb.speed = spd;
+    fb.load = load;
+    fb.voltage = volt;
+    fb.temperature = temp;
+    fb.current = -1;  // DS-S009 不支持电流读取
+    fb.valid = true;
+
+    return ESP_OK;
+}
+
+esp_err_t DSServo::WheelMode(uint8_t id) {
+    uint8_t params[2] = {DS_REG_MODE, 1};
+    esp_err_t ret = sendPacket(id, DS_CMD_WRITE, params, 2);
+    return ret;
+}
+
+esp_err_t DSServo::ServoMode(uint8_t id) {
+    uint8_t params[2] = {DS_REG_MODE, 0};
+    esp_err_t ret = sendPacket(id, DS_CMD_WRITE, params, 2);
+    return ret;
+}
+
+esp_err_t DSServo::WriteSpe(uint8_t id, int16_t speed, uint8_t acc) {
+    // 恒速模式下，位置寄存器 (0x2A) 控制方向和速度
+    // 0~1023 = CCW, 1024~2047 = CW, 1023=停止
+    uint16_t raw;
+    if (speed > 0) {
+        raw = 1023 + (uint16_t)((speed > 1000 ? 1000 : speed) * 1024 / 1000);
+    } else if (speed < 0) {
+        raw = (uint16_t)((1023 + speed * 1023 / 1000));
+    } else {
+        raw = 1023;
+    }
+    uint8_t params[5] = {
+        DS_REG_TARGET_POS,
+        (uint8_t)(raw >> 8), (uint8_t)(raw & 0xFF),
+        acc, 0x00
+    };
+    return sendPacket(id, DS_CMD_WRITE, params, 5);
+}
+
+esp_err_t DSServo::syncReadPacketTx(const uint8_t *ids, uint8_t id_count,
+                                     uint8_t start_reg, uint8_t bytes_per) {
+    uint8_t param_len = 2 + id_count;
+    uint8_t *params = (uint8_t *)malloc(param_len);
+    params[0] = start_reg;
+    params[1] = bytes_per;
+    for (uint8_t i = 0; i < id_count; i++) {
+        params[2 + i] = ids[i];
+    }
+    uart_flush_input(_uart_num);
+    esp_err_t ret = sendPacket(DS_BROADCAST_ID, DS_CMD_SYNC_READ, params, param_len);
+    free(params);
+    return ret;
+}
+
+int16_t DSServo::syncReadPacketRx(uint8_t id, uint8_t *rx_buf, uint8_t rx_len, int timeout_ms) {
+    int rd = receivePacket(id, rx_buf, rx_len, timeout_ms);
+    return (rd >= 0) ? rd : -1;
+}
+
+int16_t DSServo::syncReadRxPacketToWord(const uint8_t *rx_buf, uint8_t offset) {
+    return (int16_t)((rx_buf[offset] << 8) | rx_buf[offset + 1]);
 }
