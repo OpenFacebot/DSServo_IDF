@@ -9,7 +9,7 @@
 #include "freertos/task.h"
 #include "DSServo.h"
 
-#deine SERVO_UART_NUM UART_NUM_1
+#define SERVO_UART_NUM UART_NUM_1
 #define SERVO_BAUDRATE 1000000
 #define SERVO_TX_PIN 36
 #define SERVO_RX_PIN 32
