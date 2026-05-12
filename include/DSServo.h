@@ -29,6 +29,8 @@
 #define DS_REG_CUR_SPEED    0x3A  // 当前速度 (读, 16bit)
 #define DS_REG_CUR_VOLT     0x3E  // 当前电压 (读, 8bit)
 #define DS_REG_CUR_TEMP     0x3F  // 当前温度 (读, 8bit)
+#define DS_REG_CAL_OFS_L    0x14  // 中位偏移低字节 (读写)
+#define DS_REG_CAL_OFS_H    0x15  // 中位偏移高字节 (读写)
 
 // 同步写结构体，用于一次性控制多个舵机
 struct DSSyncWriteData {
@@ -62,11 +64,12 @@ public:
     uint8_t getServoStatus(uint8_t id) { return _last_status[id]; }
 
     // ================= 1. 系统控制类 =================
-    esp_err_t ping(uint8_t id);                
-    esp_err_t reset(uint8_t id);               
-    esp_err_t action();                        
+    esp_err_t ping(uint8_t id);
+    esp_err_t reset(uint8_t id);
+    esp_err_t action();
     esp_err_t setServoBaudRate(uint8_t id, uint8_t baud_val);
     esp_err_t changeHostBaudRate(uint32_t new_baud_rate);
+    esp_err_t calibrateOffset(uint8_t id);
 
     // ================= 2. 基础写控制 =================
     esp_err_t setTorque(uint8_t id, bool enable);

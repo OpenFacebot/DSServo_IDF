@@ -226,3 +226,64 @@ int16_t DSServo::getTemperature(uint8_t id) {
     }
     return -1;
 }
+
+esp_err_t DSServo::calibrateOffset(uint8_t id) {
+    printf("\n========================================\n");
+    printf("[校准] ID=%d 中位校准开始\n", id);
+    printf("========================================\n");
+
+    // Step 1: 开扭矩，停到中位 2048
+    setTorque(id, true);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    setPosition(id, 2048, 500);
+    vTaskDelay(pdMS_TO_TICKS(800));
+
+    // Step 2: 读取当前位置（看舵机实际到达的位置）
+    int16_t actual_pos = 0;
+    int attempts = 0;
+    while (attempts < 5) {
+        actual_pos = getPosition(id);
+        if (actual_pos > 0) break;
+        attempts++;
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    printf("[校准] 目标位置: 2048, 实际位置: %d\n", actual_pos);
+
+    // Step 3: 计算偏移 (目标2048 vs 实际)
+    int16_t offset = 2048 - actual_pos;
+    printf("[校准] 计算偏移量: %d (0x%04X)\n", offset, (uint16_t)offset & 0xFFFF);
+
+    // Step 4: 写入偏移到 EEPROM (先解锁)
+    uint8_t unlock[2] = {0x30, 0x00};
+    sendPacket(id, DS_CMD_WRITE, unlock, 2);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    uint8_t ofs_params[3] = {
+        DS_REG_CAL_OFS_L,
+        (uint8_t)(offset & 0xFF),           // 低字节
+        (uint8_t)((offset >> 8) & 0xFF)     // 高字节
+    };
+    esp_err_t ret = sendPacket(id, DS_CMD_WRITE, ofs_params, 3);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    // Step 5: 上锁
+    uint8_t lock[2] = {0x30, 0x01};
+    sendPacket(id, DS_CMD_WRITE, lock, 2);
+    vTaskDelay(pdMS_TO_TICKS(20));
+
+    // Step 6: 验证 — 读回偏移值
+    uint8_t rd_params[2] = {DS_REG_CAL_OFS_L, 2};
+    sendPacket(id, DS_CMD_READ, rd_params, 2);
+    uint8_t rd_buf[2] = {0};
+    int rd_len = receivePacket(id, rd_buf, 2, 30);
+    if (rd_len == 2) {
+        int16_t saved_ofs = (int16_t)((rd_buf[1] << 8) | rd_buf[0]);
+        printf("[校准] 读回偏移值: %d (0x%04X)\n", saved_ofs, (uint16_t)saved_ofs & 0xFFFF);
+    } else {
+        printf("[校准] 警告: 无法读回偏移值验证 (len=%d)\n", rd_len);
+    }
+
+    printf("[校准] ID=%d 校准完成 (ret=%d)\n", id, ret);
+    printf("========================================\n\n");
+    return ret;
+}
