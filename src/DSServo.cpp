@@ -391,3 +391,18 @@ int16_t DSServo::syncReadPacketRx(uint8_t id, uint8_t *rx_buf, uint8_t rx_len, i
 int16_t DSServo::syncReadRxPacketToWord(const uint8_t *rx_buf, uint8_t offset) {
     return (int16_t)((rx_buf[offset] << 8) | rx_buf[offset + 1]);
 }
+
+esp_err_t DSServo::unLockEprom(uint8_t id) {
+    uint8_t params[2] = {0x30, 0x00};
+    return sendPacket(id, DS_CMD_WRITE, params, 2);
+}
+
+esp_err_t DSServo::LockEprom(uint8_t id) {
+    uint8_t params[2] = {0x30, 0x01};
+    return sendPacket(id, DS_CMD_WRITE, params, 2);
+}
+
+esp_err_t DSServo::writeByte(uint8_t id, uint8_t reg, uint8_t value) {
+    uint8_t params[2] = {reg, value};
+    return sendPacket(id, DS_CMD_WRITE, params, 2);
+}
