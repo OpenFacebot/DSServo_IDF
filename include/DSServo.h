@@ -29,6 +29,7 @@
 #define DS_REG_MODE         0x21  // 工作模式 (读写, 8bit, 0=舵机 1=恒速)
 #define DS_REG_CUR_POS      0x38  // 当前位置 (读, 16bit)
 #define DS_REG_CUR_SPEED    0x3A  // 当前速度 (读, 16bit)
+#define DS_REG_CUR_CURRENT  0x2E  // 当前电流 (读, 16bit, mA)
 #define DS_REG_CUR_VOLT     0x3E  // 当前电压 (读, 8bit)
 #define DS_REG_CUR_TEMP     0x3F  // 当前温度 (读, 8bit)
 #define DS_REG_CAL_OFS_L    0x14  // 中位偏移低字节 (读写)
@@ -50,7 +51,7 @@ struct ServoFeedback {
     int16_t voltage;
     int16_t temperature;
     int16_t moving;   // 1=运动中, 0=静止
-    int16_t current;  // 电流 (mA, 舵机不支持则为-1)
+    int16_t current;  // 电流 (mA, 0x2E 寄存器)
     bool valid;
 };
 
@@ -150,6 +151,7 @@ public:
     int16_t getLoad(uint8_t id);
     int16_t getVoltage(uint8_t id);
     int16_t getTemperature(uint8_t id);
+    int16_t getCurrent(uint8_t id);
 
     // ================= 6. 批量回读 (FeedBack 风格) =================
     /**
@@ -172,6 +174,6 @@ public:
     int16_t ReadTemper(uint8_t id) { return _feedback[id].temperature; }
     /// 读取 FeedBack 缓存的运动状态 (1=运动中, 0=静止)
     int16_t ReadMove(uint8_t id) { return _feedback[id].moving; }
-    /// 读取 FeedBack 缓存的电流值 (mA, 不支持则为 -1)
+    /// 读取 FeedBack 缓存的电流值 (mA, 寄存器 0x2E)
     int16_t ReadCurrent(uint8_t id) { return _feedback[id].current; }
 };

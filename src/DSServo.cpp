@@ -299,11 +299,21 @@ int16_t DSServo::getLoad(uint8_t id) {
     return -1;
 }
 
+int16_t DSServo::getCurrent(uint8_t id) {
+    uint8_t params[2] = {DS_REG_CUR_CURRENT, 2};
+    sendPacket(id, DS_CMD_READ, params, 2);
+    uint8_t rx[2];
+    if (receivePacket(id, rx, 2, 20) == 2) {
+        return (int16_t)((rx[0] << 8) | rx[1]);
+    }
+    return -1;
+}
+
 esp_err_t DSServo::FeedBack(uint8_t id) {
     ServoFeedback &fb = _feedback[id];
     _last_error = false;
 
-    // 逐寄存器回读: 位置(2B)/速度(2B)/负载(2B)/电压(1B)/温度(1B)
+    // 逐寄存器回读: 位置(2B)/速度(2B)/负载(2B)/电压(1B)/温度(1B)/电流(2B)
     int16_t pos = getPosition(id);
     vTaskDelay(pdMS_TO_TICKS(2));
     int16_t spd = getSpeed(id);
@@ -313,8 +323,10 @@ esp_err_t DSServo::FeedBack(uint8_t id) {
     int16_t volt = getVoltage(id);
     vTaskDelay(pdMS_TO_TICKS(2));
     int16_t temp = getTemperature(id);
+    vTaskDelay(pdMS_TO_TICKS(2));
+    int16_t cur = getCurrent(id);
 
-    // 判断是否全部读取成功 (任一返回 -1 即为失败)
+    // 核心值必须成功, 电流/负载允许失败 (部分舵机可能不支持)
     if (pos < 0 || spd < 0 || volt < 0 || temp < 0) {
         _last_error = true;
         fb.valid = false;
@@ -331,7 +343,7 @@ esp_err_t DSServo::FeedBack(uint8_t id) {
     fb.load = load;
     fb.voltage = volt;
     fb.temperature = temp;
-    fb.current = -1;  // DS-S009 不支持电流读取
+    fb.current = cur;
     fb.valid = true;
 
     return ESP_OK;
