@@ -23,11 +23,11 @@ extern "C" void app_main(void)
     vTaskDelay(pdMS_TO_TICKS(1000)); // Wait for the serial port to stabilize
 
     while(1){
-        // Write position 2048 (135 degree) to servo with ID 1, with a movement time of 500 ms
+        // Write position 2048 (180 degree) to servo with ID 1, with a movement time of 500 ms
         ds_servo.setPosition(1, 2048, 500);
         vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for the movement to complete
 
-        // Write position 1024 (67.5 degree) to servo with ID 1, with a movement time of 500 ms
+        // Write position 1024 (90 degree) to servo with ID 1, with a movement time of 500 ms
         ds_servo.setPosition(1, 1024, 500);
         vTaskDelay(pdMS_TO_TICKS(2000)); // Wait for the movement to complete
     }
