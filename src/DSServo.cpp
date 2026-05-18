@@ -313,12 +313,10 @@ esp_err_t DSServo::FeedBack(uint8_t id) {
     ServoFeedback &fb = _feedback[id];
     _last_error = false;
 
-    // 逐寄存器回读: 位置(2B)/速度(2B)/负载(2B)/电压(1B)/温度(1B)/电流(2B)
+    // 逐寄存器回读: 位置/速度/电压/温度/电流 (协议无负载寄存器, 0x3C为只写)
     int16_t pos = getPosition(id);
     vTaskDelay(pdMS_TO_TICKS(2));
     int16_t spd = getSpeed(id);
-    vTaskDelay(pdMS_TO_TICKS(2));
-    int16_t load = getLoad(id);
     vTaskDelay(pdMS_TO_TICKS(2));
     int16_t volt = getVoltage(id);
     vTaskDelay(pdMS_TO_TICKS(2));
@@ -340,7 +338,7 @@ esp_err_t DSServo::FeedBack(uint8_t id) {
     // 填充缓存
     fb.pos = pos;
     fb.speed = spd;
-    fb.load = load;
+    fb.load = 0;           // 协议无负载寄存器
     fb.voltage = volt;
     fb.temperature = temp;
     fb.current = cur;
@@ -350,15 +348,30 @@ esp_err_t DSServo::FeedBack(uint8_t id) {
 }
 
 esp_err_t DSServo::WheelMode(uint8_t id) {
-    uint8_t params[2] = {DS_REG_MODE, 1};
-    esp_err_t ret = sendPacket(id, DS_CMD_WRITE, params, 2);
-    return ret;
+    // 电机模式 (0x1C=1), 方向由 0x1D 控制
+    uint8_t p1[2] = {DS_REG_MODE, 0x01};        // 0x1C=1: 电机模式
+    sendPacket(id, DS_CMD_WRITE, p1, 2);
+    vTaskDelay(pdMS_TO_TICKS(5));
+    uint8_t p2[2] = {DS_REG_SERVO_MODE, 0x00};   // 0x1D=0: CCW
+    return sendPacket(id, DS_CMD_WRITE, p2, 2);
 }
 
 esp_err_t DSServo::ServoMode(uint8_t id) {
-    uint8_t params[2] = {DS_REG_MODE, 0};
-    esp_err_t ret = sendPacket(id, DS_CMD_WRITE, params, 2);
-    return ret;
+    // 舵机模式 (0x1C=0)
+    uint8_t p1[2] = {DS_REG_MODE, 0x00};         // 0x1C=0: 舵机模式
+    sendPacket(id, DS_CMD_WRITE, p1, 2);
+    vTaskDelay(pdMS_TO_TICKS(5));
+    uint8_t p2[2] = {DS_REG_SERVO_MODE, 0x01};    // 0x1D=1: CW
+    return sendPacket(id, DS_CMD_WRITE, p2, 2);
+}
+
+esp_err_t DSServo::setSpeedAdj(uint8_t id, uint16_t speed) {
+    // 舵机模式下的速度调速 (0x41-0x42), 范围 0-100
+    if (speed > 100) speed = 100;
+    uint8_t params[3] = {DS_REG_SPEED_ADJ,
+                         (uint8_t)((speed >> 8) & 0xFF),   // 大端: 高字节在前
+                         (uint8_t)(speed & 0xFF)};          // 低字节在后
+    return sendPacket(id, DS_CMD_WRITE, params, 3);
 }
 
 esp_err_t DSServo::WriteSpe(uint8_t id, int16_t speed, uint8_t acc) {

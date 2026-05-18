@@ -20,21 +20,26 @@
 #define DS_CMD_SYNC_WRITE   0x83  // 同步写
 #define DS_CMD_SYNC_READ    0x82  // 同步读
 
-// ================= 核心寄存器地址 =================
+// ================= 核心寄存器地址 (按第四版协议 v4.01) =================
 #define DS_REG_ID           0x05  // 舵机ID (读写)
-#define DS_REG_TORQUE_EN    0x1D  // 扭矩开关 (读写, 8bit)
+#define DS_REG_MODE         0x1C  // 舵机电机模式 (读写, 8bit, 0=舵机模式 1=电机模式)
+#define DS_REG_SERVO_MODE   0x1D  // 电机模式方向 (读写, 8bit, 0=CCW 1=CW)
 #define DS_REG_BAUD_RATE    0x1E  // 波特率 (读写, 8bit)
+#define DS_REG_TORQUE_EN    0x28  // 扭矩开关 (读写, 8bit, 0=关 ≠0=开)
 #define DS_REG_TARGET_POS   0x2A  // 目标位置 (读写, 16bit)
 #define DS_REG_RUN_TIME     0x2C  // 运行时间 (读写, 16bit)
-#define DS_REG_MODE         0x21  // 工作模式 (读写, 8bit, 0=舵机 1=恒速)
+#define DS_REG_CUR_CURRENT  0x2E  // 当前电流 (读, 16bit, mA)
+#define DS_REG_LOCK         0x30  // 锁标志 (读写, 8bit)
 #define DS_REG_CUR_POS      0x38  // 当前位置 (读, 16bit)
 #define DS_REG_CUR_SPEED    0x3A  // 当前速度 (读, 16bit)
-#define DS_REG_CUR_CURRENT  0x2E  // 当前电流 (读, 16bit, mA)
-#define DS_REG_CUR_VOLT     0x3E  // 当前电压 (读, 8bit)
-#define DS_REG_CUR_TEMP     0x3F  // 当前温度 (读, 8bit)
+#define DS_REG_CUR_VOLT     0x3E  // 当前电压 (读, 8bit, 0.1V)
+#define DS_REG_CUR_TEMP     0x3F  // 当前温度 (读, 8bit, ℃)
+#define DS_REG_SPEED_ADJ    0x41  // 速度调速 (读写, 16bit, 0-100, 舵机模式下调速)
 #define DS_REG_CAL_OFS_L    0x14  // 中位偏移低字节 (读写)
 #define DS_REG_CAL_OFS_H    0x15  // 中位偏移高字节 (读写)
-#define DS_REG_CUR_LOAD     0x3C  // 当前负载 (读, 16bit)
+// 注: 0x3C 在协议中是"选中目标位置"(只写), 不是负载寄存器
+// 保留以下定义仅为兼容旧代码, 新代码不应使用
+#define DS_REG_CUR_LOAD     0x3C  // [已废弃] 协议中此地址为只写, 不是负载
 
 // 同步写结构体，用于一次性控制多个舵机
 struct DSSyncWriteData {
@@ -110,6 +115,7 @@ public:
     esp_err_t WheelMode(uint8_t id);
     esp_err_t ServoMode(uint8_t id);
     esp_err_t WriteSpe(uint8_t id, int16_t speed, uint8_t acc = 50);
+    esp_err_t setSpeedAdj(uint8_t id, uint16_t speed);  // 舵机模式调速 (0-100)
 
     // ================= 3. 异步写控制 =================
     esp_err_t setPositionAsync(uint8_t id, uint16_t position, uint16_t time_ms = 0);
