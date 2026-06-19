@@ -139,9 +139,8 @@ esp_err_t DSServo::setServoBaudRate(uint8_t id, uint8_t baud_val) {
 
 esp_err_t DSServo::setTorque(uint8_t id, bool enable) {
     uint8_t params[2] = {DS_REG_TORQUE_EN, (uint8_t)(enable ? 1 : 0)};
-    uint8_t cmd = (id == DS_BROADCAST_ID) ? DS_CMD_REG_WRITE : DS_CMD_WRITE;
-    esp_err_t ret = sendPacket(id, cmd, params, 2);
-    if (id == DS_BROADCAST_ID) action();
+    // DS-S009 广播时统一用 WRITE(0x03)，REG_WRITE+ACTION 在部分舵机上无效
+    esp_err_t ret = sendPacket(id, DS_CMD_WRITE, params, 2);
     return ret;
 }
 
@@ -151,9 +150,8 @@ esp_err_t DSServo::setPosition(uint8_t id, uint16_t position, uint16_t time_ms) 
         (uint8_t)(position >> 8), (uint8_t)(position & 0xFF), // 严格大端：高位在前
         (uint8_t)(time_ms >> 8), (uint8_t)(time_ms & 0xFF) 
     };
-    uint8_t cmd = (id == DS_BROADCAST_ID) ? DS_CMD_REG_WRITE : DS_CMD_WRITE;
-    esp_err_t ret = sendPacket(id, cmd, params, 5);
-    if (id == DS_BROADCAST_ID) action();
+    // DS-S009 广播时统一用 WRITE(0x03)，REG_WRITE+ACTION 在部分舵机上无效
+    esp_err_t ret = sendPacket(id, DS_CMD_WRITE, params, 5);
     return ret;
 }
 
