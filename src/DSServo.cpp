@@ -17,7 +17,9 @@ esp_err_t DSServo::begin(uart_port_t uart_num, int tx_pin, int rx_pin, uint32_t 
         .parity    = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .rx_flow_ctrl_thresh = 0,
         .source_clk = UART_SCLK_DEFAULT,
+        .flags     = {},
     };
     esp_err_t err = uart_param_config(_uart_num, &uart_config);
     if (err != ESP_OK) return err;
